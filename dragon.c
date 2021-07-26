@@ -40,6 +40,8 @@ bool print_path = false;
 bool icons_only = false;
 bool always_on_top = false;
 
+static char *stdin_files;
+
 #define MODE_HELP 1
 #define MODE_TARGET 2
 #define MODE_VERSION 4
@@ -55,7 +57,7 @@ struct draggable_thing {
 // MODE_ALL
 #define MAX_SIZE 100
 char** uri_collection;
-int uri_count;
+int uri_count = 0;
 bool drag_all = false;
 // ---
 
@@ -167,11 +169,12 @@ GtkButton *add_button(char *label, struct draggable_thing *dragdata, int type) {
 
     if (drag_all) {
         if (uri_count < MAX_SIZE) {
-            uri_collection[uri_count++] = dragdata->uri;
+            uri_collection[uri_count] = dragdata->uri;
         } else {
             fprintf(stderr, "Exceeded maximum number of files for drag_all (%d)\n", MAX_SIZE);
         }
     }
+    uri_count++;
 
     return (GtkButton *)button;
 }
@@ -201,24 +204,32 @@ void add_file_button(GFile *file) {
     dragdata->uri = uri;
 
     GtkButton *button = add_button(filename, dragdata, TARGET_TYPE_URI);
-    GFileInfo *fileinfo = g_file_query_info(file, "*", 0, NULL, NULL);
-    GIcon *icon = g_file_info_get_icon(fileinfo);
-    GtkIconInfo *icon_info = gtk_icon_theme_lookup_by_gicon(icon_theme,
-            icon, 48, 0);
-
-    // Try a few fallback mimetypes if no icon can be found
-    if (!icon_info)
-        icon_info = icon_info_from_content_type("application/octet-stream");
-    if (!icon_info)
-        icon_info = icon_info_from_content_type("text/x-generic");
-    if (!icon_info)
-        icon_info = icon_info_from_content_type("text/plain");
-
-    if (icon_info) {
-        GtkWidget *image = gtk_image_new_from_pixbuf(
-                gtk_icon_info_load_icon(icon_info, NULL));
+    GdkPixbuf *pb = gdk_pixbuf_new_from_file_at_size(filename, 96, 96, NULL);
+    if (pb) {
+        GtkWidget *image = gtk_image_new_from_pixbuf(pb);
+        gtk_button_set_always_show_image(button, true);
         gtk_button_set_image(button, image);
         gtk_button_set_always_show_image(button, true);
+    } else {
+        GFileInfo *fileinfo = g_file_query_info(file, "*", 0, NULL, NULL);
+        GIcon *icon = g_file_info_get_icon(fileinfo);
+        GtkIconInfo *icon_info = gtk_icon_theme_lookup_by_gicon(icon_theme,
+                icon, 48, 0);
+
+        // Try a few fallback mimetypes if no icon can be found
+        if (!icon_info)
+            icon_info = icon_info_from_content_type("application/octet-stream");
+        if (!icon_info)
+            icon_info = icon_info_from_content_type("text/x-generic");
+        if (!icon_info)
+            icon_info = icon_info_from_content_type("text/plain");
+
+        if (icon_info) {
+            GtkWidget *image = gtk_image_new_from_pixbuf(
+                    gtk_icon_info_load_icon(icon_info, NULL));
+            gtk_button_set_image(button, image);
+            gtk_button_set_always_show_image(button, true);
+        }
     }
 
     if (!icons_only)
@@ -348,9 +359,43 @@ void target_mode() {
     gtk_main();
 }
 
+void make_btn(char *filename) {
+    if (!is_uri(filename)) {
+        add_filename_button(filename);
+    } else if (is_file_uri(filename)) {
+        GFile *file = g_file_new_for_uri(filename);
+        add_file_button(file);
+    } else {
+        add_uri_button(filename);
+    }
+}
+
+static void readstdin(void) {
+    char *write_pos = stdin_files, *newline;
+    size_t max_size = BUFSIZ * 2, cur_size = 0;
+    // read each line from stdin and add it to the item list
+    while (fgets(write_pos, BUFSIZ, stdin)) {
+            if (write_pos[0] == '-')
+                    continue;
+            if ((newline = strchr(write_pos, '\n')))
+                    *newline = '\0';
+            else
+                    break;
+            make_btn(write_pos);
+            cur_size = newline - stdin_files + 1;
+            if (max_size < cur_size + BUFSIZ) {
+                    if (!(stdin_files = realloc(stdin_files, (max_size += BUFSIZ))))
+                            fprintf(stderr, "%s: cannot realloc %lu bytes.\n", progname, max_size);
+                    newline = stdin_files + cur_size - 1;
+            }
+            write_pos = newline + 1;
+    }
+}
+
 int main (int argc, char **argv) {
+    bool from_stdin = false;
+    stdin_files = malloc(BUFSIZ * 2);
     progname = argv[0];
-    char *filename = NULL;
     for (int i=1; i<argc; i++) {
         if (strcmp(argv[i], "--help") == 0) {
             mode = MODE_HELP;
@@ -362,7 +407,10 @@ int main (int argc, char **argv) {
             printf("  --print-path, -p  with --target, print file paths"
                     " instead of URIs\n");
             printf("  --all,        -a  drag all files at once\n");
+            printf("  --icon-only,  -i  only show icons in drag-and-drop"
+                    " windows\n");
             printf("  --on-top,     -T  make window always-on-top\n");
+            printf("  --stdin,      -I  read input from stdin\n");
             printf("  --verbose,    -v  be verbose\n");
             printf("  --help            show help\n");
             printf("  --version         show version details\n");
@@ -398,6 +446,9 @@ int main (int argc, char **argv) {
         } else if (strcmp(argv[i], "-T") == 0
                 || strcmp(argv[i], "--on-top") == 0) {
             always_on_top = true;
+        } else if (strcmp(argv[i], "-I") == 0
+                || strcmp(argv[i], "--stdin") == 0) {
+            from_stdin = true;
         } else if (argv[i][0] == '-') {
             fprintf(stderr, "%s: error: unknown option `%s'.\n",
                     progname, argv[i]);
@@ -438,27 +489,19 @@ int main (int argc, char **argv) {
         exit(0);
     }
 
-    if (drag_all) {
-       uri_collection = malloc(sizeof(char*) * ((argc > MAX_SIZE ? argc : MAX_SIZE) + 1));
-       uri_count = 0;
-    }
+    if (from_stdin)
+        uri_collection = malloc(sizeof(char*) * (MAX_SIZE  + 1));
+    else if (drag_all)
+        uri_collection = malloc(sizeof(char*) * ((argc > MAX_SIZE ? argc : MAX_SIZE) + 1));
 
-    bool had_filename = false;
     for (int i=1; i<argc; i++) {
-        if (argv[i][0] != '-') {
-            filename = argv[i];
-            if (!is_uri(filename)) {
-                add_filename_button(filename);
-            } else if (is_file_uri(filename)) {
-                GFile *file = g_file_new_for_uri(filename);
-                add_file_button(file);
-            } else {
-                add_uri_button(filename);
-            }
-            had_filename = true;
-        }
+        if (argv[i][0] != '-')
+           make_btn(argv[i]);
     }
-    if (!had_filename) {
+    if (from_stdin)
+        readstdin();
+
+    if (!uri_count) {
         printf("Usage: %s [OPTIONS] FILENAME\n", progname);
         exit(0);
     }
