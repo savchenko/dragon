@@ -2,10 +2,13 @@ PREFIX = $(HOME)/.local
 MANPREFIX = $(PREFIX)/share/man
 NAME = dragon
 
+GTK_CFLAGS = `pkg-config --cflags gtk+-3.0`
+GTK_LDLIBS = `pkg-config --libs gtk+-3.0`
+
 all: $(NAME)
 
-$(NAME): dragon.c
-	$(CC) --std=c99 -Wall $(DEFINES) -fstack-protector-all -Wl,-z,relro,-z,now -D_FORTIFY_SOURCE=2 -O3 -s dragon.c -o $(NAME) `pkg-config --cflags gtk+-3.0` `pkg-config --libs gtk+-3.0`
+$(NAME): dragon.c Makefile
+	$(CC) --std=c99 -Wall $(DEFINES) -fstack-protector-all -Wl,-z,relro,-z,now -D_FORTIFY_SOURCE=2 -O3 -s dragon.c -o $(NAME) $(GTK_CFLAGS) $(CFLAGS) $(LDFLAGS) $(GTK_LDLIBS)
 
 install: $(NAME)
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
@@ -17,3 +20,6 @@ install: $(NAME)
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/$(NAME) $(DESTDIR)$(MANPREFIX)/man1/$(NAME).1
+
+clean:
+	rm -f $(NAME)

@@ -8,8 +8,11 @@ dragon \- lightweight DnD source/target
 .OP -k
 .OP -p
 .OP -a
+.OP -A
 .OP -i
 .OP -T
+.OP -I
+.OP -s
 .OP -v
 FILENAME
 .PP
@@ -41,14 +44,20 @@ with --target, print file paths instead of URIs.
 .B -a --all
 drag all files at once.
 .TP
+.B -A --all-compact
+drag all files at once, only displaying the number of files.
+.TP
 .B -i --icon-only
 only show icons in drag-and-drop windows.
+.TP
+.B -T --on-top
+make window always-on-top.
 .TP
 .B -I --stdin
 read filenames from stdin.
 .TP
-.B -T --on-top
-make window always-on-top.
+.B -s --thumb-size
+set thumbnail size (default 96)
 .TP
 .B -v --verbose
 be verbose.
