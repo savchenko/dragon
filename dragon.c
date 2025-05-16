@@ -26,10 +26,22 @@
 
 #define VERSION "1.2.0"
 
+// Provides an absolute minimum width and height.
+#define USE_GEOMETRY_HINTS false
+#define MIN_WIDTH 640
+#define MIN_HEIGHT 480
 
+// Top-level window.
 GtkWidget *window;
+
+// Container providing the scrolling.
+GtkWidget *panel;
+
+// Child of panel, where all the children are added.
 GtkWidget *vbox;
+
 GtkIconTheme *icon_theme;
+GFile *currentDir;
 
 char *progname;
 bool verbose = false;
@@ -39,6 +51,7 @@ bool and_exit;
 bool keep;
 bool print_path = false;
 bool icons_only = false;
+int name_style = 0; // 0: relative 1: basename 2: absolute
 bool always_on_top = false;
 
 static char *stdin_files;
@@ -150,7 +163,7 @@ void add_uri(char *uri) {
     }
 }
 
-GtkButton *add_button(char *label, struct draggable_thing *dragdata, int type) {
+GtkButton *add_button(char *label, struct draggable_thing *dragdata, int type, char *tooltip) {
     GtkWidget *button;
 
     if (icons_only) {
@@ -158,6 +171,10 @@ GtkButton *add_button(char *label, struct draggable_thing *dragdata, int type) {
     } else {
         button = gtk_button_new_with_label(label);
     }
+
+    // Show a tooltip based on `tooltip` or the button's intended label.
+    // Ideally, the value is the file's full path.
+    gtk_widget_set_tooltip_text(button, tooltip != NULL ? tooltip : label);
 
     GtkTargetList *targetlist = gtk_drag_source_get_target_list(GTK_WIDGET(button));
     if (targetlist)
@@ -202,7 +219,23 @@ GtkIconInfo* icon_info_from_content_type(char *content_type) {
 }
 
 void add_file_button(GFile *file) {
-    char *filename = g_file_get_path(file);
+    char *filename;
+    // Default is relative path to file from ., if file is within .
+    filename = g_file_get_relative_path(currentDir, file);
+    // When the filename only option is set, only the file's basename including
+    // extension is displayed, not the entire path. The button's label is
+    // obtained from the file argument and depending on `filename_only`, may
+    // be either the basename or the full path. However, the full path is
+    // necessary to get the pixel buffer for image as well as for the button's
+    // tooltip.
+    char *path = g_file_get_path(file);
+
+    if (name_style == 1) {
+      filename = g_path_get_basename(path);
+    } else if (name_style == 2 || !filename) {
+      filename = g_file_get_path(file);
+    }
+
     if(!g_file_query_exists(file, NULL)) {
         fprintf(stderr, "The file `%s' does not exist.\n",
                 filename);
@@ -217,8 +250,8 @@ void add_file_button(GFile *file) {
     dragdata->text = filename;
     dragdata->uri = uri;
 
-    GtkButton *button = add_button(filename, dragdata, TARGET_TYPE_URI);
-    GdkPixbuf *pb = gdk_pixbuf_new_from_file_at_size(filename, thumb_size, thumb_size, NULL);
+    GtkButton *button = add_button(filename, dragdata, TARGET_TYPE_URI, path);
+    GdkPixbuf *pb = gdk_pixbuf_new_from_file_at_size(path, thumb_size, thumb_size, NULL);
     if (pb) {
         GtkWidget *image = gtk_image_new_from_pixbuf(pb);
         gtk_button_set_always_show_image(button, true);
@@ -263,7 +296,7 @@ void add_uri_button(char *uri) {
     struct draggable_thing *dragdata = malloc(sizeof(struct draggable_thing));
     dragdata->text = uri;
     dragdata->uri = uri;
-    GtkButton *button = add_button(uri, dragdata, TARGET_TYPE_URI);
+    GtkButton *button = add_button(uri, dragdata, TARGET_TYPE_URI, NULL);
     left_align_button(button);
 }
 
@@ -444,6 +477,44 @@ void create_all_button() {
     gtk_container_add(GTK_CONTAINER(vbox), all_button);
 }
 
+// Sets the minimum content width and height for the ScrolledWindow based on
+// the allocated width and height of the input container.
+void constrain_window_size(GtkWindow *window, GtkWidget *container, GtkScrolledWindow *scrolled_window) {
+    // Get the workarea of the monitor to limit the container's size.
+    GdkDisplay *display = gdk_display_get_default();
+    GdkMonitor *monitor = gdk_display_get_monitor(display, 0);
+    GdkRectangle *workarea = malloc(sizeof(GdkRectangle));
+
+    gdk_monitor_get_workarea(monitor, workarea);
+
+    // If enabled, the window's width and height will not be less than the
+    // defined values, regardless of the container's dimensions.
+#if USE_GEOMETRY_HINTS
+    GdkGeometry *geometry = malloc(sizeof(GdkGeometry));
+    geometry->min_width = MIN_WIDTH;
+    geometry->min_height = MIN_HEIGHT;
+    geometry->max_width = workarea->width;
+    geometry->max_height = workarea->height;
+
+    gtk_window_set_geometry_hints(window, NULL, geometry, GDK_HINT_MIN_SIZE | GDK_HINT_MAX_SIZE);
+#endif
+
+    int vbox_width = gtk_widget_get_allocated_width(container);
+    int vbox_height = gtk_widget_get_allocated_height(container);
+
+    // Placeholder until a way is found to have the window including its
+    // decorations and padding to occupy the workarea and not slightly exceed
+    // it.
+    int padded_height = workarea->height - (workarea->height * 0.05);
+    int padded_width = workarea->width - (workarea->width * 0.05);
+
+    int scroll_width = vbox_width > padded_width ? padded_width : vbox_width;
+    int scroll_height = vbox_height > padded_height ? padded_height : vbox_height;
+
+    gtk_scrolled_window_set_min_content_width((GtkScrolledWindow*)scrolled_window, scroll_width);
+    gtk_scrolled_window_set_min_content_height((GtkScrolledWindow*)scrolled_window, scroll_height);
+}
+
 int main (int argc, char **argv) {
     bool from_stdin = false;
     stdin_files = malloc(BUFSIZ * 2);
@@ -463,6 +534,8 @@ int main (int argc, char **argv) {
                     " the number of files\n");
             printf("  --icon-only,   -i  only show icons in drag-and-drop"
                     " windows\n");
+            printf("  --name-only,   -f  only show the file's basename and"
+                   " not the full path\n");
             printf("  --on-top,      -T  make window always-on-top\n");
             printf("  --stdin,       -I  read input from stdin\n");
             printf("  --thumb-size,  -s  set thumbnail size (default 96)\n");
@@ -502,6 +575,12 @@ int main (int argc, char **argv) {
         } else if (strcmp(argv[i], "-i") == 0
                 || strcmp(argv[i], "--icon-only") == 0) {
             icons_only = true;
+        } else if (strcmp(argv[i], "-f") == 0
+                || strcmp(argv[i], "--name-only") == 0) {
+            name_style = 1;
+        } else if (strcmp(argv[i], "-F") == 0
+                || strcmp(argv[i], "--full-path") == 0) {
+            name_style = 2;
         } else if (strcmp(argv[i], "-T") == 0
                 || strcmp(argv[i], "--on-top") == 0) {
             always_on_top = true;
@@ -532,6 +611,9 @@ int main (int argc, char **argv) {
 
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 
+    // Scrolling Window
+    panel = gtk_scrolled_window_new(NULL, NULL);
+
     closure = g_cclosure_new(G_CALLBACK(do_quit), NULL, NULL);
     accelgroup = gtk_accel_group_new();
     gtk_accel_group_connect(accelgroup, GDK_KEY_Escape, 0, 0, closure);
@@ -547,9 +629,13 @@ int main (int argc, char **argv) {
 
     vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
-    gtk_container_add(GTK_CONTAINER(window), vbox);
+    gtk_container_add(GTK_CONTAINER(panel), vbox);
+
+    gtk_container_add(GTK_CONTAINER(window), panel);
 
     gtk_window_set_title(GTK_WINDOW(window), "dragon");
+
+    currentDir = g_file_new_for_path(".");
 
     if (all_compact)
         create_all_button();
@@ -582,6 +668,7 @@ int main (int argc, char **argv) {
         update_all_button();
 
     gtk_widget_show_all(window);
+    constrain_window_size(GTK_WINDOW(window), vbox, (GtkScrolledWindow*)panel);
 
     gtk_main();
 
