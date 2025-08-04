@@ -420,6 +420,7 @@ void add_target_button() {
 
 void target_mode() {
     add_target_button();
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(panel), GTK_POLICY_NEVER, GTK_POLICY_NEVER);
     gtk_widget_show_all(window);
     gtk_main();
 }
