@@ -15,6 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define _POSIX_C_SOURCE 200809L
 #define _XOPEN_SOURCE 500
+#include <fontconfig/fontconfig.h>
 #include <gtk/gtk.h>
 #include <gdk/gdk.h>
 #include <gdk/gdkkeysyms.h>
@@ -605,6 +606,10 @@ int main (int argc, char **argv) {
     GtkAccelGroup *accelgroup;
     GClosure *closure;
 
+    if (!FcInit()) {
+        fprintf(stderr, "%s: FcInit failed.\n", progname);
+        exit(1);
+    }
     gtk_init(&argc, &argv);
 
     icon_theme = gtk_icon_theme_get_default();
