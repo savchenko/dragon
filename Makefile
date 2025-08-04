@@ -3,13 +3,13 @@ MANPREFIX = $(PREFIX)/share/man
 BASHCOMPLETIONPREFIX = $(PREFIX)/share/bash-completion/completions/
 NAME = dragon
 
-GTK_CFLAGS = `pkg-config --cflags gtk+-3.0`
-GTK_LDLIBS = `pkg-config --libs gtk+-3.0`
+DEPS_CFLAGS = `pkg-config --cflags gtk+-3.0 fontconfig`
+DEPS_LDLIBS = `pkg-config --libs gtk+-3.0 fontconfig`
 
 all: $(NAME)
 
 $(NAME): dragon.c Makefile
-	$(CC) --std=c99 -Wall $(DEFINES) dragon.c -o $(NAME) $(GTK_CFLAGS) $(CFLAGS) $(LDFLAGS) $(GTK_LDLIBS)
+	$(CC) --std=c99 -Wall $(DEFINES) dragon.c -o $(NAME) $(DEPS_CFLAGS) $(CFLAGS) $(LDFLAGS) $(DEPS_LDLIBS)
 
 install: $(NAME)
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
