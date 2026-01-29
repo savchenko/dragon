@@ -1,4 +1,4 @@
-PREFIX = $(HOME)/.local
+PREFIX = /usr
 MANPREFIX = $(PREFIX)/share/man
 BASHCOMPLETIONPREFIX = $(PREFIX)/share/bash-completion/completions/
 NAME = dragon
