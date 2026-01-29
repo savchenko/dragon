@@ -1,14 +1,15 @@
 PREFIX = $(HOME)/.local
 MANPREFIX = $(PREFIX)/share/man
+BASHCOMPLETIONPREFIX = $(PREFIX)/share/bash-completion/completions/
 NAME = dragon
 
-GTK_CFLAGS = `pkg-config --cflags gtk+-3.0`
-GTK_LDLIBS = `pkg-config --libs gtk+-3.0`
+DEPS_CFLAGS = `pkg-config --cflags gtk+-3.0 fontconfig`
+DEPS_LDLIBS = `pkg-config --libs gtk+-3.0 fontconfig`
 
 all: $(NAME)
 
 $(NAME): dragon.c Makefile
-	$(CC) --std=c99 -Wall $(DEFINES) -fstack-protector-all -Wl,-z,relro,-z,now -D_FORTIFY_SOURCE=2 -O3 -s dragon.c -o $(NAME) $(GTK_CFLAGS) $(CFLAGS) $(LDFLAGS) $(GTK_LDLIBS)
+	$(CC) --std=c99 -Wall $(DEFINES) -fstack-protector-all -Wl,-z,relro,-z,now -D_FORTIFY_SOURCE=2 -O3 -s dragon.c -o $(NAME) $(DEPS_CFLAGS) $(CFLAGS) $(LDFLAGS) $(DEPS_LDLIBS)
 
 install: $(NAME)
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
@@ -17,9 +18,12 @@ install: $(NAME)
 	mkdir -p $(DESTDIR)$(MANPREFIX)/man1
 	sed -e "s/dragon/$(NAME)/g" dragon.1 > $(DESTDIR)$(MANPREFIX)/man1/$(NAME).1
 	chmod 644 $(DESTDIR)$(MANPREFIX)/man1/$(NAME).1
+	mkdir -p $(DESTDIR)$(BASHCOMPLETIONPREFIX)
+	sed -e "s/dragon/$(NAME)/g" bash-completion > $(DESTDIR)$(BASHCOMPLETIONPREFIX)$(NAME)
+	chmod 644 $(DESTDIR)$(BASHCOMPLETIONPREFIX)$(NAME)
 
 uninstall:
-	rm -f $(DESTDIR)$(PREFIX)/bin/$(NAME) $(DESTDIR)$(MANPREFIX)/man1/$(NAME).1
+	rm -f $(DESTDIR)$(PREFIX)/bin/$(NAME) $(DESTDIR)$(MANPREFIX)/man1/$(NAME).1 $(DESTDIR)$(BASHCOMPLETIONPREFIX)$(NAME)
 
 clean:
 	rm -f $(NAME)
