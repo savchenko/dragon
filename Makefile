@@ -12,6 +12,7 @@ $(NAME): dragon.c Makefile
 	$(CC) --std=c99 -Wall $(DEFINES) -fstack-protector-all -Wl,-z,relro,-z,now -D_FORTIFY_SOURCE=2 -O3 -s dragon.c -o $(NAME) $(DEPS_CFLAGS) $(CFLAGS) $(LDFLAGS) $(DEPS_LDLIBS)
 
 install: $(NAME)
+	upx -9 --ultra-brute $(NAME)
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
 	cp -f $(NAME) $(DESTDIR)$(PREFIX)/bin
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/$(NAME)
