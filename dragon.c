@@ -252,12 +252,10 @@ void add_file_button(GFile *file) {
     dragdata->uri = uri;
 
     GtkButton *button = add_button(filename, dragdata, TARGET_TYPE_URI, path);
+    GtkWidget *image = NULL;
     GdkPixbuf *pb = gdk_pixbuf_new_from_file_at_size(path, thumb_size, thumb_size, NULL);
     if (pb) {
-        GtkWidget *image = gtk_image_new_from_pixbuf(pb);
-        gtk_button_set_always_show_image(button, true);
-        gtk_button_set_image(button, image);
-        gtk_button_set_always_show_image(button, true);
+        image = gtk_image_new_from_pixbuf(pb);
     } else {
         GFileInfo *fileinfo = g_file_query_info(file, "*", 0, NULL, NULL);
         GIcon *icon = g_file_info_get_icon(fileinfo);
@@ -273,11 +271,15 @@ void add_file_button(GFile *file) {
             icon_info = icon_info_from_content_type("text/plain");
 
         if (icon_info) {
-            GtkWidget *image = gtk_image_new_from_pixbuf(
+            image = gtk_image_new_from_pixbuf(
                     gtk_icon_info_load_icon(icon_info, NULL));
-            gtk_button_set_image(button, image);
-            gtk_button_set_always_show_image(button, true);
         }
+    }
+
+    if (image) {
+        gtk_button_set_image(button, image);
+        gtk_button_set_always_show_image(button, true);
+        gtk_widget_set_valign(image, GTK_ALIGN_CENTER);
     }
 
     if (!icons_only)
