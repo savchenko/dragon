@@ -479,15 +479,14 @@ void create_all_button() {
     gtk_container_add(GTK_CONTAINER(vbox), all_button);
 }
 
-// Sets the minimum content width and height for the ScrolledWindow based on
-// the allocated width and height of the input container.
+// Keep small file lists snug and enable scrolling on each axis that overflows.
 void constrain_window_size(GtkWindow *window, GtkWidget *container, GtkScrolledWindow *scrolled_window) {
     // Get the workarea of the monitor to limit the container's size.
     GdkDisplay *display = gdk_display_get_default();
     GdkMonitor *monitor = gdk_display_get_monitor(display, 0);
-    GdkRectangle *workarea = malloc(sizeof(GdkRectangle));
+    GdkRectangle workarea;
 
-    gdk_monitor_get_workarea(monitor, workarea);
+    gdk_monitor_get_workarea(monitor, &workarea);
 
     // If enabled, the window's width and height will not be less than the
     // defined values, regardless of the container's dimensions.
@@ -495,26 +494,23 @@ void constrain_window_size(GtkWindow *window, GtkWidget *container, GtkScrolledW
     GdkGeometry *geometry = malloc(sizeof(GdkGeometry));
     geometry->min_width = MIN_WIDTH;
     geometry->min_height = MIN_HEIGHT;
-    geometry->max_width = workarea->width;
-    geometry->max_height = workarea->height;
+    geometry->max_width = workarea.width;
+    geometry->max_height = workarea.height;
 
     gtk_window_set_geometry_hints(window, NULL, geometry, GDK_HINT_MIN_SIZE | GDK_HINT_MAX_SIZE);
 #endif
 
-    int vbox_width = gtk_widget_get_allocated_width(container);
-    int vbox_height = gtk_widget_get_allocated_height(container);
+    GtkRequisition content;
+    gtk_widget_get_preferred_size(container, NULL, &content);
 
-    // Placeholder until a way is found to have the window including its
-    // decorations and padding to occupy the workarea and not slightly exceed
-    // it.
-    int padded_height = workarea->height - (workarea->height * 0.05);
-    int padded_width = workarea->width - (workarea->width * 0.05);
-
-    int scroll_width = vbox_width > padded_width ? padded_width : vbox_width;
-    int scroll_height = vbox_height > padded_height ? padded_height : vbox_height;
-
-    gtk_scrolled_window_set_min_content_width((GtkScrolledWindow*)scrolled_window, scroll_width);
-    gtk_scrolled_window_set_min_content_height((GtkScrolledWindow*)scrolled_window, scroll_height);
+    // Leave room for the window decorations.
+    int max_width = workarea.width * 0.95;
+    int max_height = workarea.height * 0.95;
+    gtk_scrolled_window_set_policy(scrolled_window,
+            content.width > max_width ? GTK_POLICY_AUTOMATIC : GTK_POLICY_NEVER,
+            content.height > max_height ? GTK_POLICY_AUTOMATIC : GTK_POLICY_NEVER);
+    gtk_scrolled_window_set_min_content_width(scrolled_window, MIN(content.width, max_width));
+    gtk_scrolled_window_set_min_content_height(scrolled_window, MIN(content.height, max_height));
 }
 
 int main (int argc, char **argv) {
@@ -673,8 +669,9 @@ int main (int argc, char **argv) {
     if (all_compact)
         update_all_button();
 
-    gtk_widget_show_all(window);
-    constrain_window_size(GTK_WINDOW(window), vbox, (GtkScrolledWindow*)panel);
+    gtk_widget_show_all(panel);
+    constrain_window_size(GTK_WINDOW(window), vbox, GTK_SCROLLED_WINDOW(panel));
+    gtk_widget_show(window);
 
     gtk_main();
 
