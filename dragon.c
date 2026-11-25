@@ -618,6 +618,9 @@ int main (int argc, char **argv) {
     GtkCssProvider *styles = gtk_css_provider_new();
     gtk_css_provider_load_from_data(styles,
             "scrolledwindow button { border-radius: 0; }"
+            "scrolledwindow button:hover:not(:active):not(:disabled) {"
+            "  box-shadow: inset 0 0 0 2px alpha(currentColor, 0.7);"
+            "}"
             "button.file-button { padding-left: 2px; padding-right: 2px; }", -1, NULL);
     gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
             GTK_STYLE_PROVIDER(styles), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
