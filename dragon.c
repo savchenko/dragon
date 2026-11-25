@@ -208,10 +208,13 @@ GtkButton *add_button(char *label, struct draggable_thing *dragdata, int type, c
 }
 
 void left_align_button(GtkButton *button) {
-    GList *child = g_list_first(
-            gtk_container_get_children(GTK_CONTAINER(button)));
-    if (child)
-        gtk_widget_set_halign(GTK_WIDGET(child->data), GTK_ALIGN_START);
+    GtkWidget *child = gtk_bin_get_child(GTK_BIN(button));
+    if (child) {
+        gtk_widget_set_halign(child, GTK_ALIGN_START);
+        // Balance the transparent leading edge of the file icon.
+        if (gtk_button_get_image(button))
+            gtk_widget_set_margin_end(child, 6);
+    }
 }
 
 GtkIconInfo* icon_info_from_content_type(char *content_type) {
@@ -280,6 +283,7 @@ void add_file_button(GFile *file) {
         gtk_button_set_image(button, image);
         gtk_button_set_always_show_image(button, true);
         gtk_widget_set_valign(image, GTK_ALIGN_CENTER);
+        gtk_style_context_add_class(gtk_widget_get_style_context(GTK_WIDGET(button)), "file-button");
     }
 
     if (!icons_only)
@@ -610,6 +614,13 @@ int main (int argc, char **argv) {
         exit(1);
     }
     gtk_init(&argc, &argv);
+
+    GtkCssProvider *styles = gtk_css_provider_new();
+    gtk_css_provider_load_from_data(styles,
+            "button.file-button { padding-left: 2px; padding-right: 2px; }", -1, NULL);
+    gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
+            GTK_STYLE_PROVIDER(styles), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_object_unref(styles);
 
     icon_theme = gtk_icon_theme_get_default();
 
