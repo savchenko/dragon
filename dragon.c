@@ -620,6 +620,7 @@ int main (int argc, char **argv) {
             "scrolledwindow button { border-radius: 0; }"
             "scrolledwindow button:focus { outline-style: none; }"
             "scrolledwindow button:hover:not(:active):not(:disabled) {"
+            "  -gtk-icon-effect: none;"
             "  box-shadow: inset 0 0 0 2px alpha(@text_view_bg, 1.0);"
             "}"
             "button.file-button { padding-left: 2px; padding-right: 2px; }", -1, NULL);
