@@ -620,7 +620,7 @@ int main (int argc, char **argv) {
             "scrolledwindow button { border-radius: 0; }"
             "scrolledwindow button:focus { outline-style: none; }"
             "scrolledwindow button:hover:not(:active):not(:disabled) {"
-            "  box-shadow: inset 0 0 0 2px alpha(@theme_selected_bg_color, 1.0);"
+            "  box-shadow: inset 0 0 0 2px alpha(@text_view_bg, 1.0);"
             "}"
             "button.file-button { padding-left: 2px; padding-right: 2px; }", -1, NULL);
     gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
